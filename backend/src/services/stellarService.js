@@ -24,6 +24,27 @@ function normalizeAmount(rawAmount) {
   return parseFloat(parseFloat(rawAmount).toFixed(7));
 }
 
+/**
+ * Extract and validate the payment operation from a transaction.
+ * Returns { payOp, memo, asset } or null if the transaction is invalid.
+ * Checks: successful flag, memo presence, destination wallet, accepted asset.
+ */
+async function extractValidPayment(tx) {
+  if (!tx.successful) return null;
+
+  const memo = tx.memo ? tx.memo.trim() : null;
+  if (!memo) return null;
+
+  const ops = await tx.operations();
+  const payOp = ops.records.find(op => op.type === 'payment' && op.to === SCHOOL_WALLET);
+  if (!payOp) return null;
+
+  const asset = detectAsset(payOp);
+  if (!asset) return null;
+
+  return { payOp, memo, asset };
+}
+
 // Fetch recent transactions to the school wallet and record new payments
 async function syncPayments() {
   const transactions = await server
@@ -34,26 +55,17 @@ async function syncPayments() {
     .call();
 
   for (const tx of transactions.records) {
-    const memo = tx.memo;
-    if (!memo) continue;
-
     const exists = await Payment.findOne({ txHash: tx.hash });
     if (exists) continue;
 
-    const ops = await tx.operations();
-    const payOp = ops.records.find(op => op.type === 'payment' && op.to === SCHOOL_WALLET);
-    if (!payOp) continue;
+    const valid = await extractValidPayment(tx);
+    if (!valid) continue;
 
-    // Detect asset type and reject unsupported assets
-    const asset = detectAsset(payOp);
-    if (!asset) continue; // skip unsupported assets
-
+    const { payOp, memo } = valid;
     const student = await Student.findOne({ studentId: memo });
     if (!student) continue;
 
     const paymentAmount = parseFloat(payOp.amount);
-
-    // Validate payment amount against the student's defined fee
     const feeValidation = validatePaymentAgainstFee(paymentAmount, student.feeAmount);
 
     await Payment.create({
@@ -66,7 +78,6 @@ async function syncPayments() {
       confirmedAt: new Date(tx.created_at),
     });
 
-    // Only mark as paid if the payment meets or exceeds the required fee
     if (feeValidation.status === 'valid' || feeValidation.status === 'overpaid') {
       await Student.findOneAndUpdate({ studentId: memo }, { feePaid: true });
     }
@@ -76,14 +87,14 @@ async function syncPayments() {
 // Verify a single transaction hash against the school wallet
 async function verifyTransaction(txHash) {
   const tx = await server.transactions().transaction(txHash).call();
-  const ops = await tx.operations();
-  const payOp = ops.records.find(op => op.type === 'payment' && op.to === SCHOOL_WALLET);
-  if (!payOp) return null;
 
+  const valid = await extractValidPayment(tx);
+  if (!valid) return null;
+
+  const { payOp, memo, asset } = valid;
   const amount = parseFloat(payOp.amount);
 
-  // Look up the student to validate against their fee
-  const student = await Student.findOne({ studentId: tx.memo });
+  const student = await Student.findOne({ studentId: memo });
   const feeAmount = student ? student.feeAmount : null;
   const feeValidation = feeAmount != null
     ? validatePaymentAgainstFee(amount, feeAmount)
@@ -91,8 +102,10 @@ async function verifyTransaction(txHash) {
 
   return {
     hash: tx.hash,
-    memo: tx.memo,
+    memo,
     amount,
+    assetCode: asset.assetCode,
+    assetType: asset.assetType,
     feeAmount,
     feeValidation,
     date: tx.created_at,
@@ -124,4 +137,4 @@ function validatePaymentAgainstFee(paymentAmount, expectedFee) {
   };
 }
 
-module.exports = { syncPayments, verifyTransaction, validatePaymentAgainstFee };
+module.exports = { syncPayments, verifyTransaction, validatePaymentAgainstFee, detectAsset, normalizeAmount, extractValidPayment };
