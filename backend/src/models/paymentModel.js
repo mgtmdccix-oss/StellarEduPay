@@ -6,6 +6,7 @@ const paymentSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   feeAmount: { type: Number, default: null },
   feeValidationStatus: { type: String, enum: ['valid', 'underpaid', 'overpaid', 'unknown'], default: 'unknown' },
+  excessAmount: { type: Number, default: 0 },
   memo: { type: String },
   confirmedAt: { type: Date, default: Date.now },
 }, { timestamps: true });
