@@ -102,6 +102,7 @@ async function syncPayments() {
       amount: paymentAmount,
       feeAmount: intent.amount,
       feeValidationStatus: feeValidation.status,
+      excessAmount: feeValidation.excessAmount,
       status: 'confirmed',
       memo,
       confirmedAt: new Date(tx.created_at),
@@ -230,17 +231,21 @@ function validatePaymentAgainstFee(paymentAmount, expectedFee) {
   if (paymentAmount < expectedFee) {
     return {
       status: 'underpaid',
+      excessAmount: 0,
       message: `Payment of ${paymentAmount} is less than the required fee of ${expectedFee}`,
     };
   }
   if (paymentAmount > expectedFee) {
+    const excess = parseFloat((paymentAmount - expectedFee).toFixed(7));
     return {
       status: 'overpaid',
-      message: `Payment of ${paymentAmount} exceeds the required fee of ${expectedFee}`,
+      excessAmount: excess,
+      message: `Payment of ${paymentAmount} exceeds the required fee of ${expectedFee} by ${excess}`,
     };
   }
   return {
     status: 'valid',
+    excessAmount: 0,
     message: 'Payment matches the required fee',
   };
 }

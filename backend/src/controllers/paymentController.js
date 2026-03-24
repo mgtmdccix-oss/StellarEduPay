@@ -135,6 +135,19 @@ async function getAcceptedAssets(req, res, next) {
   }
 }
 
+// GET /api/payments/overpayments
+async function getOverpayments(req, res) {
+  try {
+    const overpayments = await Payment.find({ feeValidationStatus: 'overpaid' })
+      .sort({ confirmedAt: -1 });
+    const totalExcess = overpayments.reduce((sum, p) => sum + (p.excessAmount || 0), 0);
+    res.json({ count: overpayments.length, totalExcess, overpayments });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+module.exports = { getPaymentInstructions, verifyPayment, syncAllPayments, getStudentPayments, getAcceptedAssets, getOverpayments };
 module.exports = {
   getPaymentInstructions,
   verifyPayment,
