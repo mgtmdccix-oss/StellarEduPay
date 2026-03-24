@@ -9,6 +9,9 @@ const paymentSchema = new mongoose.Schema({
   excessAmount: { type: Number, default: 0 },
   status: { type: String, enum: ['pending', 'confirmed', 'failed'], default: 'pending' },
   memo: { type: String },
+  senderAddress: { type: String, default: null },
+  isSuspicious: { type: Boolean, default: false },
+  suspicionReason: { type: String, default: null },
   confirmedAt: { type: Date, default: Date.now },
 }, { timestamps: true });
 

@@ -180,6 +180,17 @@ async function getStudentBalance(req, res) {
   }
 }
 
+// GET /api/payments/suspicious
+async function getSuspiciousPayments(req, res) {
+  try {
+    const suspicious = await Payment.find({ isSuspicious: true }).sort({ confirmedAt: -1 });
+    res.json({ count: suspicious.length, suspicious });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+module.exports = { getPaymentInstructions, verifyPayment, syncAllPayments, getStudentPayments, getAcceptedAssets, getOverpayments, getStudentBalance, getSuspiciousPayments };
 module.exports = { getPaymentInstructions, verifyPayment, syncAllPayments, getStudentPayments, getAcceptedAssets, getOverpayments, getStudentBalance };
 module.exports = { getPaymentInstructions, verifyPayment, syncAllPayments, getStudentPayments, getAcceptedAssets, getOverpayments };
 module.exports = {
