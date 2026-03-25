@@ -1,6 +1,7 @@
 'use strict';
 
 const { generateReport, reportToCsv } = require('../services/reportService');
+const { get, set, KEYS, TTL } = require('../cache');
 
 /**
  * GET /api/reports
@@ -28,6 +29,12 @@ async function getReport(req, res, next) {
       return next(err);
     }
 
+    const cacheKey = KEYS.report(startDate, endDate);
+    let report = get(cacheKey);
+    if (report === undefined) {
+      report = await generateReport({ startDate, endDate });
+      set(cacheKey, report, TTL.REPORT);
+    }
     // Pass schoolId so report is scoped to this school only
     const report = await generateReport({ schoolId: req.schoolId, startDate, endDate });
 

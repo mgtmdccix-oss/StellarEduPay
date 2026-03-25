@@ -1,6 +1,7 @@
 'use strict';
 
 const FeeStructure = require('../models/feeStructureModel');
+const { get, set, del, KEYS, TTL } = require('../cache');
 
 // POST /api/fees
 async function createFeeStructure(req, res, next) {
@@ -17,6 +18,8 @@ async function createFeeStructure(req, res, next) {
       { feeAmount, description, academicYear, isActive: true },
       { upsert: true, new: true, runValidators: true }
     );
+    // Invalidate fee caches so next read reflects the change
+    del(KEYS.feesAll(), KEYS.feeByClass(className));
     res.status(201).json(fee);
   } catch (err) {
     next(err);
@@ -26,6 +29,12 @@ async function createFeeStructure(req, res, next) {
 // GET /api/fees
 async function getAllFeeStructures(req, res, next) {
   try {
+    const cacheKey = KEYS.feesAll();
+    const cached = get(cacheKey);
+    if (cached !== undefined) return res.json(cached);
+
+    const fees = await FeeStructure.find({ isActive: true }).sort({ className: 1 });
+    set(cacheKey, fees, TTL.FEES);
     const fees = await FeeStructure.find({ schoolId: req.schoolId, isActive: true }).sort({ className: 1 });
     res.json(fees);
   } catch (err) {
@@ -36,16 +45,23 @@ async function getAllFeeStructures(req, res, next) {
 // GET /api/fees/:className
 async function getFeeByClass(req, res, next) {
   try {
+    const { className } = req.params;
+    const cacheKey = KEYS.feeByClass(className);
+    const cached = get(cacheKey);
+    if (cached !== undefined) return res.json(cached);
+
+    const fee = await FeeStructure.findOne({ className, isActive: true });
     const fee = await FeeStructure.findOne({
       schoolId: req.schoolId,
       className: req.params.className,
       isActive: true,
     });
     if (!fee) {
-      const err = new Error(`No fee structure found for class ${req.params.className}`);
+      const err = new Error(`No fee structure found for class ${className}`);
       err.code = 'NOT_FOUND';
       return next(err);
     }
+    set(cacheKey, fee, TTL.FEES);
     res.json(fee);
   } catch (err) {
     next(err);
@@ -55,7 +71,9 @@ async function getFeeByClass(req, res, next) {
 // DELETE /api/fees/:className
 async function deleteFeeStructure(req, res, next) {
   try {
+    const { className } = req.params;
     const fee = await FeeStructure.findOneAndUpdate(
+      { className },
       { schoolId: req.schoolId, className: req.params.className },
       { isActive: false },
       { new: true }
@@ -65,7 +83,9 @@ async function deleteFeeStructure(req, res, next) {
       err.code = 'NOT_FOUND';
       return next(err);
     }
-    res.json({ message: `Fee structure for class ${req.params.className} deactivated` });
+    // Invalidate fee caches
+    del(KEYS.feesAll(), KEYS.feeByClass(className));
+    res.json({ message: `Fee structure for class ${className} deactivated` });
   } catch (err) {
     next(err);
   }
