@@ -14,6 +14,7 @@ A decentralized school fee payment system built on the Stellar blockchain. Paren
 - [API Reference](#api-reference)
 - [Running Tests](#running-tests)
 - [Documentation](#documentation)
+- [Contributing](#contributing)
 - [Future Scope](#future-scope)
 
 ---
@@ -276,3 +277,8 @@ Tests:       33 passed, 33 total
 ## License
 
 MIT
+
+---
+
+## Contributing
+Please read [](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
