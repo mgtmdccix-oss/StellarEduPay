@@ -1,12 +1,12 @@
 'use strict';
 
-const { server, SCHOOL_WALLET, isAcceptedAsset, CONFIRMATION_THRESHOLD, StellarSdk, networkPassphrase } = require('../config/stellarConfig');
 const { server, isAcceptedAsset, CONFIRMATION_THRESHOLD } = require('../config/stellarConfig');
 const Payment = require('../models/paymentModel');
 const Student = require('../models/studentModel');
 const PaymentIntent = require('../models/paymentIntentModel');
 const { validatePaymentAmount } = require('../utils/paymentLimits');
 const { generateReferenceCode } = require('../utils/generateReferenceCode');
+const logger = require('../utils/logger').child('StellarService');
 
 function detectAsset(payOp) {
   const assetType = payOp.asset_type;
@@ -369,9 +369,11 @@ async function recordPayment(data) {
     if (e.code === 11000) {
       const err = new Error(`Transaction ${data.transactionHash} has already been processed`);
       err.code = 'DUPLICATE_TX';
+      logger.warn('Duplicate transaction rejected', { txHash: data.transactionHash, schoolId: data.schoolId });
       throw err;
     }
-    throw err;
+    logger.error('Failed to record payment', { error: e.message, txHash: data.transactionHash, schoolId: data.schoolId });
+    throw e;
   }
 }
 
@@ -557,6 +559,16 @@ async function syncPaymentsForSchool(school) {
       ledger: txLedger,
       confirmationStatus,
       confirmedAt: txDate,
+    });
+
+    logger.info('Transaction recorded', {
+      txHash: tx.hash,
+      schoolId,
+      studentId: intent.studentId,
+      amount: paymentAmount,
+      feeValidationStatus: cumulativeStatus,
+      isSuspicious: collision.suspicious,
+      confirmationStatus,
     });
 
     if (isConfirmed && !collision.suspicious && typeof Student.findOneAndUpdate === 'function') {
