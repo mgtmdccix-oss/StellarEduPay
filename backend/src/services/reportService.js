@@ -8,6 +8,8 @@ const Student = require('../models/studentModel');
  *
  * @param {{ schoolId: string, startDate?: string, endDate?: string }} options
  */
+async function aggregateByDate({ startDate, endDate } = {}) {
+  const match = { status: 'SUCCESS' };
 async function aggregateByDate({ schoolId, startDate, endDate } = {}) {
   const match = { schoolId, status: 'confirmed' };
 
@@ -72,6 +74,8 @@ async function generateReport({ schoolId, startDate, endDate } = {}) {
     { totalAmount: 0, paymentCount: 0, validCount: 0, overpaidCount: 0, underpaidCount: 0 }
   );
 
+  // Count students who have fully paid within the period
+  const match = { status: 'SUCCESS' };
   const match = { schoolId, status: 'confirmed' };
   if (startDate || endDate) {
     match.confirmedAt = {};

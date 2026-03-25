@@ -331,6 +331,22 @@ curl -X DELETE http://localhost:5000/api/fees/Grade%205A
 
 ## Payments
 
+### Submit a signed transaction
+```
+POST /api/payments/submit
+```
+Body:
+```json
+{ "xdr": "AAAA..." }
+```
+> The backend decodes this XDR, records a `SUBMITTED` trail, and pushes it to the Stellar ecosystem.
+
+Response `200`:
+```json
+{ "verified": true, "hash": "abc...", "ledger": 1234, "status": "SUCCESS" }
+```
+
+### Get payment instructions
 ### Get Payment Instructions
 
 ```
