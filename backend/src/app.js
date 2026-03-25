@@ -165,12 +165,16 @@ app.get('/health', async (req, res) => {
     const retryQueueStatus = await getSystemStatus();
     res.json({
       status: 'ok',
+      network: config.STELLAR_NETWORK,
+      horizonUrl: config.HORIZON_URL,
       retryQueue: retryQueueStatus,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     res.json({
       status: 'ok',
+      network: config.STELLAR_NETWORK,
+      horizonUrl: config.HORIZON_URL,
       retryQueue: { error: error.message },
       timestamp: new Date().toISOString(),
     });

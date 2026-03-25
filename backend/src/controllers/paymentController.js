@@ -138,7 +138,7 @@ async function submitTransaction(req, res, next) {
     }
 
     // Decode the transaction from the base64 XDR string
-    const tx = new StellarSdk.Transaction(xdr, StellarSdk.Networks.TESTNET); // or networkPassphrase
+    const tx = new StellarSdk.Transaction(xdr, require('../config/stellarConfig').networkPassphrase);
     const transactionHash = tx.hash().toString('hex');
     const memo = tx.memo.value ? tx.memo.value.toString() : null;
 
