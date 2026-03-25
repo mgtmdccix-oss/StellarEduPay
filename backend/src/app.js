@@ -12,6 +12,7 @@ const paymentRoutes  = require('./routes/paymentRoutes');
 const feeRoutes      = require('./routes/feeRoutes');
 const reportRoutes   = require('./routes/reportRoutes');
 const reminderRoutes = require('./routes/reminderRoutes');
+const disputeRoutes  = require('./routes/disputeRoutes');
 const { runConsistencyCheck } = require('./controllers/consistencyController');
 const { startPolling, stopPolling } = require('./services/transactionService');
 const { startRetryWorker, stopRetryWorker, isRetryWorkerRunning } = require('./services/retryService');
@@ -67,6 +68,7 @@ app.use('/api/payments',  paymentRoutes);
 app.use('/api/fees',      feeRoutes);
 app.use('/api/reports',   reportRoutes);
 app.use('/api/reminders', reminderRoutes);
+app.use('/api/disputes', disputeRoutes);
 app.get('/api/consistency', runConsistencyCheck);
 
 app.get('/health', async (req, res) => {
