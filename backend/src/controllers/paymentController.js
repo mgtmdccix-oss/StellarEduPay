@@ -674,6 +674,282 @@ async function getExchangeRates(req, res, next) {
   }
 }
 
+// ── #93 Transaction Filtering API ─────────────────────────────────────────────
+/**
+ * GET /api/payments/
+ *
+ * Query params (all optional):
+ *   startDate  — ISO date string (e.g. 2026-01-01)
+ *   endDate    — ISO date string (e.g. 2026-12-31)
+ *   minAmount  — minimum payment amount (inclusive)
+ *   maxAmount  — maximum payment amount (inclusive)
+ *   status     — payment status filter (e.g. SUCCESS, FAILED, PENDING)
+ *   studentId  — filter by student ID
+ *   page       — pagination page (default 1)
+ *   limit      — page size (default 50, max 200)
+ */
+async function getAllPayments(req, res, next) {
+  try {
+    const { schoolId } = req;
+    const {
+      startDate,
+      endDate,
+      minAmount,
+      maxAmount,
+      status,
+      studentId,
+      page = 1,
+      limit = 50,
+    } = req.query;
+
+    // Build filter
+    const filter = { schoolId };
+
+    // Date range on confirmedAt
+    if (startDate || endDate) {
+      filter.confirmedAt = {};
+      if (startDate) {
+        if (isNaN(Date.parse(startDate))) {
+          return res.status(400).json({ error: 'Invalid startDate', code: 'VALIDATION_ERROR' });
+        }
+        filter.confirmedAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        if (isNaN(Date.parse(endDate))) {
+          return res.status(400).json({ error: 'Invalid endDate', code: 'VALIDATION_ERROR' });
+        }
+        // Include the entire end day
+        const end = new Date(endDate);
+        end.setUTCHours(23, 59, 59, 999);
+        filter.confirmedAt.$lte = end;
+      }
+    }
+
+    // Amount range
+    if (minAmount || maxAmount) {
+      filter.amount = {};
+      if (minAmount) {
+        const min = Number(minAmount);
+        if (!Number.isFinite(min)) return res.status(400).json({ error: 'Invalid minAmount', code: 'VALIDATION_ERROR' });
+        filter.amount.$gte = min;
+      }
+      if (maxAmount) {
+        const max = Number(maxAmount);
+        if (!Number.isFinite(max)) return res.status(400).json({ error: 'Invalid maxAmount', code: 'VALIDATION_ERROR' });
+        filter.amount.$lte = max;
+      }
+    }
+
+    // Status filter
+    if (status) {
+      filter.status = status.toUpperCase();
+    }
+
+    // Student filter
+    if (studentId) {
+      filter.studentId = studentId;
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
+    const skip = (pageNum - 1) * pageSize;
+
+    const [payments, total] = await Promise.all([
+      Payment.find(filter).sort({ confirmedAt: -1 }).skip(skip).limit(pageSize).lean(),
+      Payment.countDocuments(filter),
+    ]);
+
+    res.json({
+      payments,
+      pagination: {
+        page: pageNum,
+        limit: pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── #94 Dead Letter Queue for Failed Jobs ─────────────────────────────────────
+/**
+ * GET /api/payments/dlq
+ *
+ * Returns all permanently failed (dead-lettered) jobs from the BullMQ DLQ
+ * as well as the MongoDB PendingVerification records with status 'dead_letter'.
+ */
+async function getDeadLetterJobs(req, res, next) {
+  try {
+    const { schoolId } = req;
+
+    // MongoDB dead-lettered records (school-scoped)
+    const mongoDeadLetters = await PendingVerification.find({
+      schoolId,
+      status: 'dead_letter',
+    }).sort({ updatedAt: -1 }).lean();
+
+    // BullMQ dead-letter queue stats (global — not school-scoped)
+    let bullmqDLQ = { enabled: false };
+    try {
+      const { getDLQStats } = require('../queue/transactionRetryQueue');
+      bullmqDLQ = await getDLQStats();
+    } catch (_) {
+      // BullMQ may not be initialised — that's fine
+    }
+
+    res.json({
+      mongo: {
+        count: mongoDeadLetters.length,
+        items: mongoDeadLetters,
+      },
+      bullmq: bullmqDLQ,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/payments/dlq/:id/retry
+ *
+ * Re-queue a dead-lettered job for retry by resetting its status to 'pending'.
+ */
+async function retryDeadLetterJob(req, res, next) {
+  try {
+    const { schoolId } = req;
+    const { id } = req.params;
+
+    const item = await PendingVerification.findOneAndUpdate(
+      { _id: id, schoolId, status: 'dead_letter' },
+      {
+        $set: {
+          status: 'pending',
+          lastError: null,
+          nextRetryAt: new Date(),
+        },
+        $set: { attempts: 0 },
+      },
+      { new: true }
+    );
+
+    if (!item) {
+      return res.status(404).json({ error: 'Dead-letter job not found', code: 'NOT_FOUND' });
+    }
+
+    res.json({ message: 'Job re-queued for retry', item });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── #91 Payment Locking Mechanism ────────────────────────────────────────────
+/**
+ * POST /api/payments/:paymentId/lock
+ *
+ * Acquires a pessimistic lock on a payment record to prevent simultaneous updates.
+ * Uses MongoDB findOneAndUpdate with an atomic lock-check pattern.
+ *
+ * Body (optional): { lockDurationMs: 30000 }
+ */
+async function lockPaymentForUpdate(req, res, next) {
+  try {
+    const { schoolId } = req;
+    const { paymentId } = req.params;
+    const lockDurationMs = req.body.lockDurationMs || 30000;
+
+    const lockId = `lock_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const lockDeadline = new Date(Date.now() + lockDurationMs);
+
+    // Attempt atomic lock acquisition — only succeeds if payment is not already locked
+    const payment = await Payment.findOneAndUpdate(
+      {
+        _id: paymentId,
+        schoolId,
+        $or: [
+          { lockedUntil: null },
+          { lockedUntil: { $exists: false } },
+          { lockedUntil: { $lte: new Date() } },
+        ],
+      },
+      {
+        $set: {
+          lockedUntil: lockDeadline,
+          lockHolder: lockId,
+        },
+      },
+      { new: true }
+    );
+
+    if (!payment) {
+      // Either payment doesn't exist or it's already locked
+      const exists = await Payment.findOne({ _id: paymentId, schoolId });
+      if (!exists) {
+        return res.status(404).json({ error: 'Payment not found', code: 'NOT_FOUND' });
+      }
+      return res.status(409).json({
+        error: 'Payment is currently locked by another process',
+        code: 'PAYMENT_LOCKED',
+        lockedUntil: exists.lockedUntil,
+      });
+    }
+
+    res.json({
+      locked: true,
+      lockId,
+      lockedUntil: lockDeadline,
+      paymentId: payment._id,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/payments/:paymentId/unlock
+ *
+ * Releases a previously acquired lock on a payment record.
+ * Body: { lockId: string }
+ */
+async function unlockPayment(req, res, next) {
+  try {
+    const { schoolId } = req;
+    const { paymentId } = req.params;
+    const { lockId } = req.body;
+
+    if (!lockId) {
+      return res.status(400).json({ error: 'lockId is required', code: 'VALIDATION_ERROR' });
+    }
+
+    const payment = await Payment.findOneAndUpdate(
+      {
+        _id: paymentId,
+        schoolId,
+        lockHolder: lockId,
+      },
+      {
+        $set: {
+          lockedUntil: null,
+          lockHolder: null,
+        },
+      },
+      { new: true }
+    );
+
+    if (!payment) {
+      return res.status(404).json({
+        error: 'Payment not found or lockId does not match',
+        code: 'NOT_FOUND',
+      });
+    }
+
+    res.json({ unlocked: true, paymentId: payment._id });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getPaymentInstructions,
   createPaymentIntent,
@@ -689,6 +965,11 @@ module.exports = {
   getPendingPayments,
   getRetryQueue,
   submitTransaction,
-};
   getExchangeRates,
+  getAllPayments,
+  getDeadLetterJobs,
+  retryDeadLetterJob,
+  lockPaymentForUpdate,
+  unlockPayment,
 };
+
