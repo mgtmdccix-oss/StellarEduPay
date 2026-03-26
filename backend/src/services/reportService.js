@@ -2,6 +2,7 @@
 
 const Payment = require('../models/paymentModel');
 const Student = require('../models/studentModel');
+const FeeStructure = require('../models/feeStructureModel');
 
 /**
  * Aggregate confirmed payments grouped by date (YYYY-MM-DD), scoped to a school.
@@ -118,4 +119,107 @@ function reportToCsv(report) {
   return lines.join('\n');
 }
 
-module.exports = { generateReport, aggregateByDate, reportToCsv };
+/**
+ * Aggregate dashboard metrics for a school.
+ * @param {{ schoolId: string }} options
+ */
+async function getDashboardMetrics({ schoolId } = {}) {
+  const now = new Date();
+  const startOfToday = new Date(now.toISOString().slice(0, 10) + 'T00:00:00.000Z');
+
+  const [
+    totalStudents,
+    paidStudents,
+    overdueStudents,
+    paymentTotals,
+    todayTotals,
+    byClass,
+    recentPayments,
+  ] = await Promise.all([
+    Student.countDocuments({ schoolId }),
+    Student.countDocuments({ schoolId, feePaid: true }),
+    Student.countDocuments({ schoolId, feePaid: false, paymentDeadline: { $lt: now, $ne: null } }),
+
+    // All-time confirmed payment totals
+    Payment.aggregate([
+      { $match: { schoolId, status: 'SUCCESS' } },
+      { $group: { _id: null, totalCollected: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+
+    // Today's payments
+    Payment.aggregate([
+      { $match: { schoolId, status: 'SUCCESS', confirmedAt: { $gte: startOfToday } } },
+      { $group: { _id: null, totalCollected: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+
+    // Per-class breakdown
+    Student.aggregate([
+      { $match: { schoolId } },
+      {
+        $group: {
+          _id: '$class',
+          totalStudents:  { $sum: 1 },
+          paidStudents:   { $sum: { $cond: ['$feePaid', 1, 0] } },
+          totalFees:      { $sum: '$feeAmount' },
+          totalPaid:      { $sum: '$totalPaid' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          class: '$_id',
+          totalStudents: 1,
+          paidStudents: 1,
+          unpaidStudents: { $subtract: ['$totalStudents', '$paidStudents'] },
+          totalFees:  { $round: ['$totalFees', 7] },
+          totalPaid:  { $round: ['$totalPaid', 7] },
+          outstanding: { $round: [{ $subtract: ['$totalFees', '$totalPaid'] }, 7] },
+        },
+      },
+      { $sort: { class: 1 } },
+    ]),
+
+    // 5 most recent successful payments
+    Payment.find({ schoolId, status: 'SUCCESS' })
+      .sort({ confirmedAt: -1 })
+      .limit(5)
+      .select('txHash studentId amount feeValidationStatus confirmedAt')
+      .lean(),
+  ]);
+
+  const collected = paymentTotals[0] || { totalCollected: 0, count: 0 };
+  const today     = todayTotals[0]   || { totalCollected: 0, count: 0 };
+
+  // Expected total fees across all students
+  const feeAgg = await Student.aggregate([
+    { $match: { schoolId } },
+    { $group: { _id: null, totalExpected: { $sum: '$feeAmount' }, totalPaid: { $sum: '$totalPaid' } } },
+  ]);
+  const feeRow = feeAgg[0] || { totalExpected: 0, totalPaid: 0 };
+
+  return {
+    generatedAt: now.toISOString(),
+    students: {
+      total:   totalStudents,
+      paid:    paidStudents,
+      unpaid:  totalStudents - paidStudents,
+      overdue: overdueStudents,
+    },
+    fees: {
+      totalExpected:   parseFloat(feeRow.totalExpected.toFixed(7)),
+      totalCollected:  parseFloat(collected.totalCollected.toFixed(7)),
+      outstanding:     parseFloat(Math.max(0, feeRow.totalExpected - feeRow.totalPaid).toFixed(7)),
+      collectionRate:  feeRow.totalExpected > 0
+        ? parseFloat((feeRow.totalPaid / feeRow.totalExpected * 100).toFixed(2))
+        : 0,
+    },
+    today: {
+      totalCollected: parseFloat(today.totalCollected.toFixed(7)),
+      paymentCount:   today.count,
+    },
+    byClass,
+    recentPayments,
+  };
+}
+
+module.exports = { generateReport, aggregateByDate, reportToCsv, getDashboardMetrics };

@@ -7,7 +7,7 @@ const { get, set, del, KEYS, TTL } = require('../cache');
 async function createFeeStructure(req, res, next) {
   try {
     const { schoolId } = req; // injected by resolveSchool middleware
-    const { className, feeAmount, description, academicYear } = req.body;
+    const { className, feeAmount, description, academicYear, paymentDeadline } = req.body;
     if (!className || feeAmount == null) {
       const err = new Error('className and feeAmount are required');
       err.code = 'VALIDATION_ERROR';
@@ -15,7 +15,7 @@ async function createFeeStructure(req, res, next) {
     }
     const fee = await FeeStructure.findOneAndUpdate(
       { schoolId, className },
-      { feeAmount, description, academicYear, isActive: true },
+      { feeAmount, description, academicYear, isActive: true, paymentDeadline: paymentDeadline || null },
       { upsert: true, new: true, runValidators: true }
     );
     // Invalidate fee caches so next read reflects the change

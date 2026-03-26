@@ -5,7 +5,6 @@ const FeeStructure = require('../models/feeStructureModel');
 const { get, set, del, KEYS, TTL } = require('../cache');
 const csv = require('csv-parser');
 const { Readable } = require('stream');
-const { get, set, del, KEYS, TTL } = require('../cache');
 
 async function registerStudent(req, res, next) {
   try {
@@ -32,9 +31,13 @@ async function registerStudent(req, res, next) {
     });
 
     let assignedFee = feeAmount;
+    let assignedDeadline = null;
     if (assignedFee == null && className) {
       const feeStructure = await FeeStructure.findOne({ schoolId, className, isActive: true });
-      if (feeStructure) assignedFee = feeStructure.feeAmount;
+      if (feeStructure) {
+        assignedFee = feeStructure.feeAmount;
+        assignedDeadline = feeStructure.paymentDeadline || null;
+      }
     }
 
     if (assignedFee == null) {
@@ -46,7 +49,7 @@ async function registerStudent(req, res, next) {
       return next(err);
     }
 
-    const student = await Student.create({ schoolId, studentId, name, class: className, feeAmount: assignedFee, parentEmail: parentEmail || null, parentPhone: parentPhone || null });
+    const student = await Student.create({ schoolId, studentId, name, class: className, feeAmount: assignedFee, paymentDeadline: assignedDeadline, parentEmail: parentEmail || null, parentPhone: parentPhone || null });
 
     del(KEYS.studentsAll());
 
@@ -257,4 +260,18 @@ async function bulkImportStudents(req, res, next) {
   }
 }
 
-module.exports = { registerStudent, getAllStudents, getStudent, getPaymentSummary, bulkImportStudents };
+async function getOverdueStudents(req, res, next) {
+  try {
+    const now = new Date();
+    const students = await Student.find({
+      schoolId: req.schoolId,
+      feePaid: false,
+      paymentDeadline: { $lt: now, $ne: null },
+    }).lean();
+    res.json(students.map(s => ({ ...s, isOverdue: true })));
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { registerStudent, getAllStudents, getStudent, getPaymentSummary, bulkImportStudents, getOverdueStudents };

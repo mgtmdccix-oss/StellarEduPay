@@ -7,6 +7,7 @@ const { server } = require('../config/stellarConfig');
 const { extractValidPayment, validatePaymentAgainstFee, detectMemoCollision, detectAbnormalPatterns, checkConfirmationStatus } = require('./stellarService');
 const { validatePaymentAmount } = require('../utils/paymentLimits');
 const { generateReferenceCode } = require('../utils/generateReferenceCode');
+const { emit: sseEmit } = require('./sseService');
 const logger = require('../utils/logger').child('TransactionPollingService');
 
 let pollingInterval = null;
@@ -128,6 +129,15 @@ async function processTransaction(tx, school) {
         }
       );
     }
+
+    sseEmit(schoolId, 'payment', {
+      txHash: tx.hash,
+      studentId: memo,
+      amount: paymentAmount,
+      feeValidationStatus: cumulativeStatus,
+      status: paymentData.status,
+      confirmedAt: txDate,
+    });
 
     logger.info('Transaction auto-detected and recorded', {
       txHash: tx.hash,

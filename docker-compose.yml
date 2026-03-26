@@ -29,5 +29,32 @@ services:
     volumes:
       - mongo_data:/data/db
 
+  # Runs a mongodump every 24 hours and retains 7 days of backups.
+  # Backups are written to the host path defined by BACKUP_DIR (default: ./backups).
+  backup:
+    image: mongo:7
+    entrypoint: >
+      /bin/sh -c '
+        while true; do
+          echo "[backup] $(date -u) — starting backup";
+          mongodump
+            --uri="$$MONGO_URI"
+            --archive="/backups/$$(date -u +%Y%m%dT%H%M%SZ).gz"
+            --gzip &&
+          echo "[backup] done" ||
+          echo "[backup] FAILED";
+          find /backups -name "*.gz" -mtime +$$RETAIN_DAYS -delete;
+          sleep 86400;
+        done
+      '
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/stellaredupay
+      - RETAIN_DAYS=${RETAIN_DAYS:-7}
+    volumes:
+      - ${BACKUP_DIR:-./backups}:/backups
+    depends_on:
+      - mongo
+    restart: unless-stopped
+
 volumes:
   mongo_data:
