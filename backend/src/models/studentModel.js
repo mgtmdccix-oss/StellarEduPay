@@ -31,6 +31,15 @@ const studentSchema = new mongoose.Schema(
     feePaid:          { type: Boolean, default: false, index: true },
     totalPaid:        { type: Number, default: 0 },
     remainingBalance: { type: Number, default: null },
+
+    // Parent contact for fee reminders
+    parentEmail:      { type: String, default: null, trim: true, lowercase: true },
+    parentPhone:      { type: String, default: null, trim: true },
+
+    // Reminder tracking — prevents spamming
+    lastReminderSentAt:   { type: Date, default: null },
+    reminderCount:        { type: Number, default: 0 },
+    reminderOptOut:       { type: Boolean, default: false },
     version:          { type: Number, default: 0 },
     lastPaymentAt:    { type: Date, default: null },
     lastPaymentHash:  { type: String, default: null },
@@ -60,9 +69,6 @@ studentSchema.index({ feePaid: 1, class: 1 });
 studentSchema.index({ totalPaid: 1 });
 
 studentSchema.pre('save', function(next) {
-  if (this.isModified() && !this.isNew) {
-    this.version += 1;
-  }
   next();
 });
 

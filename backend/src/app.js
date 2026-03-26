@@ -11,10 +11,12 @@ const studentRoutes  = require('./routes/studentRoutes');
 const paymentRoutes  = require('./routes/paymentRoutes');
 const feeRoutes      = require('./routes/feeRoutes');
 const reportRoutes   = require('./routes/reportRoutes');
+const reminderRoutes = require('./routes/reminderRoutes');
 const { runConsistencyCheck } = require('./controllers/consistencyController');
 const { startPolling, stopPolling } = require('./services/transactionPollingService');
 const { startRetryWorker, stopRetryWorker, isRetryWorkerRunning } = require('./services/retryService');
 const { startConsistencyScheduler } = require('./services/consistencyScheduler');
+const { startReminderScheduler, stopReminderScheduler } = require('./services/reminderService');
 const { initializeRetryQueue, setupMonitoring } = require('./config/retryQueueSetup');
 const { initializeRetryQueue, setupMonitoring, getSystemStatus } = require('./config/retryQueueSetup');
 const database = require('./config/database');
@@ -168,6 +170,7 @@ app.use('/api/students',  studentRoutes);
 app.use('/api/payments',  paymentRoutes);
 app.use('/api/fees',      feeRoutes);
 app.use('/api/reports',   reportRoutes);
+app.use('/api/reminders', reminderRoutes);
 app.get('/api/consistency', runConsistencyCheck);
 
 app.get('/health', async (req, res) => {
@@ -228,6 +231,7 @@ mongoose.connect(config.MONGO_URI)
     startPolling();
     startConsistencyScheduler();
     startRetryWorker();
+    startReminderScheduler();
 
     try {
       await initializeRetryQueue(app);
@@ -253,6 +257,7 @@ async function shutdown(signal) {
 
   stopPolling();
   stopRetryWorker();
+  stopReminderScheduler();
 
   const deadline = Date.now() + 8_000;
   while (isRetryWorkerRunning() && Date.now() < deadline) {
