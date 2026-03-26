@@ -26,6 +26,7 @@ const {
   unlockPayment,
   generateReceipt,
   getQueueJobStatus,
+  streamPaymentEvents,
 } = require('../controllers/paymentController');
 
 const {
@@ -48,6 +49,7 @@ router.use(resolveSchool);
 router.get('/',                              getAllPayments);
 router.get('/accepted-assets',               getAcceptedAssets);
 router.get('/limits',                        getPaymentLimitsEndpoint);
+router.get('/events',                        streamPaymentEvents);
 router.get('/overpayments',                  getOverpayments);
 router.get('/suspicious',                    getSuspiciousPayments);
 router.get('/pending',                       getPendingPayments);

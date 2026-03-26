@@ -1,6 +1,6 @@
 'use strict';
 
-const { generateReport, reportToCsv } = require('../services/reportService');
+const { generateReport, reportToCsv, getDashboardMetrics } = require('../services/reportService');
 const { get, set, KEYS, TTL } = require('../cache');
 
 /**
@@ -57,4 +57,22 @@ function buildFilename(startDate, endDate) {
   return `${parts.join('_')}.csv`;
 }
 
-module.exports = { getReport };
+/**
+ * GET /api/reports/dashboard
+ * Returns aggregated metrics for the frontend dashboard.
+ */
+async function getDashboard(req, res, next) {
+  try {
+    const cacheKey = `dashboard:${req.schoolId}`;
+    let metrics = get(cacheKey);
+    if (metrics === undefined) {
+      metrics = await getDashboardMetrics({ schoolId: req.schoolId });
+      set(cacheKey, metrics, TTL.REPORT);
+    }
+    res.json(metrics);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { getReport, getDashboard };
