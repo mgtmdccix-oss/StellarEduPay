@@ -377,6 +377,8 @@ async function syncPaymentsForSchool(school) {
       if (!page || !page.records.length) break;
     }
   }
+
+  await SystemConfig.set(`lastSyncAt:${schoolId}`, new Date().toISOString());
 }
 
 /**
