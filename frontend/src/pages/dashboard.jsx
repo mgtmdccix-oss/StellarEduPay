@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import Head from 'next/head';
 import Navbar from '../components/Navbar';
 import SyncButton from '../components/SyncButton';
 
@@ -15,10 +14,6 @@ export default function Dashboard() {
 
   return (
     <>
-      <Head>
-        <title>Admin Dashboard | StellarEduPay</title>
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-      </Head>
       <Navbar />
       <div style={{ maxWidth: 800, margin: '2rem auto', fontFamily: 'sans-serif', padding: '0 1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
