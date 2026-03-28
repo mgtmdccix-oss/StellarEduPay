@@ -101,7 +101,7 @@ export default function TransactionCard({ payment, txHash, amount, memo, confirm
         <span style={{ color: '#888' }}>Tx: </span>
         {tx ? (
           <a
-            href={explorerUrl}
+            href={transactionExplorerUrl}
             target="_blank"
             rel="noopener noreferrer"
             title={tx}
