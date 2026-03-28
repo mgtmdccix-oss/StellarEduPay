@@ -1,40 +1,34 @@
-# Transaction Fee Tracking
+# Add Verify Transaction UI to Pay Fees Page
+
+Closes #230
 
 ## Summary
 
-Track network fees associated with each payment. Extract fees from Stellar transactions, store them in the database, and make them visible in the payment records.
-
-## Tasks
-
-- [x] Extract fee from transaction
-- [x] Store in database
+`POST /api/payments/verify` existed but had no frontend interface. Parents had no way to confirm their payment was recorded without contacting the school. This PR adds a Verify Payment section to the pay-fees page.
 
 ## Changes
-
-### Modified Files
-
-| File | Description |
-| ---- | ----------- |
-| [`backend/src/models/paymentModel.js`](backend/src/models/paymentModel.js) | Added `networkFee` field |
-| [`backend/src/services/stellarService.js`](backend/src/services/stellarService.js) | Added fee extraction from Stellar transactions |
-| [`backend/src/controllers/paymentController.js`](backend/src/controllers/paymentController.js) | Stores and returns network fees in API |
 
 ### New Files
 
 | File | Description |
 | ---- | ----------- |
-| [`test_fee_tracking.js`](test_fee_tracking.js) | Integration test |
-| [`verify_fee_tracking.js`](verify_fee_tracking.js) | Verification script |
+| [`frontend/src/components/VerifyPayment.jsx`](frontend/src/components/VerifyPayment.jsx) | Self-contained verify form — input, submit, result display, error handling |
+
+### Modified Files
+
+| File | Description |
+| ---- | ----------- |
+| [`frontend/src/pages/pay-fees.jsx`](frontend/src/pages/pay-fees.jsx) | Renders `<VerifyPayment />` below the payment instructions section |
+
+## Behaviour
+
+- Parent enters a transaction hash and clicks Verify
+- On success: shows amount, asset, student ID (memo), date, fee validation status, and network fee
+- On error: displays the API error message (e.g. `MISSING_MEMO`, `TX_FAILED`, `INVALID_DESTINATION`) or a fallback message
+- Fee validation status is colour-coded: green (valid), orange (overpaid), red (underpaid)
 
 ## Acceptance Criteria
 
-- [x] Fees are recorded and visible
-
-## Implementation
-
-Network fees are extracted from Stellar transactions using:
-```javascript
-const networkFee = parseFloat(tx.fee_paid || '0') / 10000000;
-```
-
-The fees are stored in the payment record and returned in API responses.
+- [x] Parents can enter a tx hash and see confirmation details
+- [x] Invalid or unrecognised hashes show a clear error
+- [x] Successful verification shows amount, memo, and date
