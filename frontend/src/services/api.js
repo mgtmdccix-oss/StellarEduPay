@@ -1,9 +1,16 @@
 import axios from 'axios';
 
 const TIMEOUT_MS = parseInt(process.env.NEXT_PUBLIC_REQUEST_TIMEOUT_MS || '15000', 10);
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+
+if (!API_BASE_URL) {
+  throw new Error(
+    'Missing NEXT_PUBLIC_API_URL. Define it in frontend/.env.local for local development or set it in the deployment environment.'
+  );
+}
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+  baseURL: API_BASE_URL,
   timeout: TIMEOUT_MS,
 });
 
@@ -20,9 +27,8 @@ export const getFeeByClass = (className) => api.get(`/fees/${className}`);
 // Reports
 export const getReport = (params = {}) => api.get('/reports', { params });
 export const getReportCsvUrl = (params = {}) => {
-  const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
   const query = new URLSearchParams({ ...params, format: 'csv' }).toString();
-  return `${base}/reports?${query}`;
+  return `${API_BASE_URL}/reports?${query}`;
 };
 
 // Currency conversion
