@@ -35,20 +35,23 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const fetchStudents = useCallback((p = page) => {
-    setLoading(true);
-    setError(null);
-    return getStudents(p, PAGE_SIZE)
-      .then(({ data }) => {
-        setLastSyncAt(data.lastSyncAt);
-        setError(null);
-      })
-      .catch((err) => {
-        setError("Failed to load sync status. Please try again.");
-        console.error(err);
-      })
-      .finally(() => setLoading(false));
-  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fetchStudents = useCallback(
+    (p = page) => {
+      setLoading(true);
+      setError(null);
+      return getStudents(p, PAGE_SIZE)
+        .then(({ data }) => {
+          setLastSyncAt(data.lastSyncAt);
+          setError(null);
+        })
+        .catch((err) => {
+          setError("Failed to load sync status. Please try again.");
+          console.error(err);
+        })
+        .finally(() => setLoading(false));
+    },
+    [page],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initial load: sync status + first page of students
   useEffect(() => {
@@ -146,10 +149,7 @@ export default function Dashboard() {
           }}
         >
           <h1 style={{ margin: 0 }}>Admin Dashboard</h1>
-          <SyncButton
-            onSyncComplete={handleSyncComplete}
-            lastSyncTime={lastSyncAt}
-          />
+          <SyncButton onSyncComplete={handleSyncComplete} lastSyncTime={lastSyncAt} />
         </div>
 
         {/* Toast */}
@@ -170,9 +170,7 @@ export default function Dashboard() {
 
         {/* Sync status */}
         {loading ? (
-          <p style={{ fontSize: "0.85rem", color: "#888" }}>
-            Loading sync status…
-          </p>
+          <p style={{ fontSize: "0.85rem", color: "#888" }}>Loading sync status…</p>
         ) : error ? (
           <div
             style={{
@@ -183,10 +181,7 @@ export default function Dashboard() {
               marginBottom: "1rem",
             }}
           >
-            <p
-              style={{ color: "#c62828", margin: "0 0 0.75rem 0" }}
-              role="alert"
-            >
+            <p style={{ color: "#c62828", margin: "0 0 0.75rem 0" }} role="alert">
               {error}
             </p>
             <button
@@ -235,11 +230,11 @@ export default function Dashboard() {
 }
 
 const pageBtnStyle = {
-  padding: '0.4rem 0.9rem',
-  fontSize: '0.88rem',
-  background: '#1a1a2e',
-  color: '#fff',
-  border: 'none',
+  padding: "0.4rem 0.9rem",
+  fontSize: "0.88rem",
+  background: "#1a1a2e",
+  color: "#fff",
+  border: "none",
   borderRadius: 6,
-  cursor: 'pointer',
+  cursor: "pointer",
 };
