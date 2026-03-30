@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
-import Navbar from "../components/Navbar";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import SyncButton from "../components/SyncButton";
-import { getSyncStatus, getPaymentSummary } from "../services/api";
+import { getSyncStatus, getPaymentSummary, getStudents } from "../services/api";
+
+const PAGE_SIZE = 10;
 
 function timeAgo(isoString) {
   if (!isoString) return "Never";
@@ -29,9 +30,6 @@ export default function Dashboard() {
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
 
-  const [summary, setSummary] = useState(null);
-  const [summaryLoading, setSummaryLoading] = useState(true);
-
   // Search & filter state
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -54,13 +52,6 @@ export default function Dashboard() {
   // Initial load: sync status + first page of students
   useEffect(() => {
     setSummaryLoading(true);
-    getPaymentSummary()
-      .then(({ data }) => setSummary(data))
-      .catch(() => {})
-      .finally(() => setSummaryLoading(false));
-  }, []);
-
-  useEffect(() => {
     getPaymentSummary()
       .then(({ data }) => setSummary(data))
       .catch(() => {})
@@ -125,7 +116,6 @@ export default function Dashboard() {
 
   return (
     <>
-      <Navbar />
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.75rem; }
