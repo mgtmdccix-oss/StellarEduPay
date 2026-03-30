@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import SyncButton from "../components/SyncButton";
-import { getSyncStatus, getPaymentSummary } from "../services/api";
+import { getSyncStatus, getPaymentSummary, getStudents } from "../services/api";
+
+const PAGE_SIZE = 10;
 
 function timeAgo(isoString) {
   if (!isoString) return "Never";
