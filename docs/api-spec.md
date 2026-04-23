@@ -893,6 +893,7 @@ Validation middleware failures return an `errors` array:
 | Code | HTTP | Description |
 |---|---|---|
 | `VALIDATION_ERROR` | 400 | Request body or query parameter failed validation |
+| `INVALID_DATE_FORMAT` | 400 | `startDate` or `endDate` is not a valid ISO 8601 date, or `startDate` is after `endDate` |
 | `MISSING_IDEMPOTENCY_KEY` | 400 | `Idempotency-Key` header missing on required routes |
 | `MISSING_SCHOOL_CONTEXT` | 400 | `X-School-ID` or `X-School-Slug` header missing |
 | `TX_FAILED` | 400 | Stellar transaction failed on-chain |
