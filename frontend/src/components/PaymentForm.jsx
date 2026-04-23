@@ -131,20 +131,30 @@ export default function PaymentForm() {
             </div>
 
             {/* QR code for mobile wallet scanning (SEP-0007 URI) */}
-            {instructions.walletAddress && instructions.memo && (
-              <div style={{ marginTop: "1.25rem", textAlign: "center" }}>
-                <span className="pf-label" style={{ display: "block", marginBottom: "0.6rem" }}>Scan with Stellar Wallet</span>
-                <QRCodeSVG
-                  value={generateStellarPaymentUri({
-                    destination: instructions.walletAddress,
-                    amount: instructions.feeAmount ?? student.feeAmount ?? 0,
-                    memo: instructions.memo,
-                  })}
-                  size={160}
-                  aria-label="Stellar payment QR code"
-                />
-              </div>
-            )}
+            {instructions.walletAddress && instructions.memo && (() => {
+              // Pick the first non-XLM asset from acceptedAssets so the QR URI
+              // includes asset_code and asset_issuer for USDC payments.
+              // If only XLM is accepted, assetCode stays undefined (defaults to XLM).
+              const nonNative = instructions.acceptedAssets?.find(
+                a => a.code !== 'XLM' && a.type !== 'native'
+              );
+              return (
+                <div style={{ marginTop: "1.25rem", textAlign: "center" }}>
+                  <span className="pf-label" style={{ display: "block", marginBottom: "0.6rem" }}>Scan with Stellar Wallet</span>
+                  <QRCodeSVG
+                    value={generateStellarPaymentUri({
+                      destination: instructions.walletAddress,
+                      amount: instructions.feeAmount ?? student.feeAmount ?? 0,
+                      memo: instructions.memo,
+                      assetCode: nonNative?.code,
+                      assetIssuer: nonNative?.issuer,
+                    })}
+                    size={160}
+                    aria-label="Stellar payment QR code"
+                  />
+                </div>
+              );
+            })()}
 
             {instructions.acceptedAssets?.length > 0 && (
               <p style={{ marginTop: "1rem", fontSize: "0.8rem", color: "var(--muted)" }}>
