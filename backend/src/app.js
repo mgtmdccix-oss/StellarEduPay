@@ -15,7 +15,11 @@ const schoolRoutes = require('./routes/schoolRoutes');
 const reminderRoutes = require('./routes/reminderRoutes');
 const disputeRoutes = require('./routes/disputeRoutes');
 const sourceValidationRuleRoutes = require('./routes/sourceValidationRuleRoutes');
+<<<<<<< fix/402-auto-generate-receipts-on-payment-success
 const receiptsRoutes = require('./routes/receiptsRoutes');
+=======
+const feeAdjustmentRoutes = require('./routes/feeAdjustmentRoutes');
+>>>>>>> main
 
 const { startPolling, stopPolling } = require('./services/transactionPollingService');
 const { startRetryWorker, stopRetryWorker, isRetryWorkerRunning } = require('./services/retryService');
@@ -44,22 +48,19 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-School-ID', 'Idempotency-Key'],
 }));
+// The backend serves only JSON API responses — no HTML, scripts, or styles.
+// CSP directives for HTML content (scriptSrc, styleSrc, imgSrc, etc.) are
+// irrelevant here and have been removed. The frontend (Next.js) owns those.
+// We keep only the directives that are meaningful for an API endpoint.
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'"],
-      imgSrc: ["'self'"],
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
+      defaultSrc: ["'none'"],
+      frameAncestors: ["'none'"],
     },
   },
   crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "same-origin" },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 app.use(express.json());
 app.use(requestLogger());
@@ -82,7 +83,11 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/disputes', disputeRoutes);
 app.use('/api/source-rules', sourceValidationRuleRoutes);
+<<<<<<< fix/402-auto-generate-receipts-on-payment-success
 app.use('/api/receipts', receiptsRoutes);
+=======
+app.use('/api/fee-adjustments', feeAdjustmentRoutes);
+>>>>>>> main
 app.get('/api/consistency', runConsistencyCheck);
 app.get('/health', healthCheck);
 
