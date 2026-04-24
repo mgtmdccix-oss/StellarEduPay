@@ -184,8 +184,11 @@ X-School-ID: SCH-3F2A
 |---|---|---|---|
 | `page` | number | `1` | Page number |
 | `limit` | number | `50` | Results per page (max 200) |
-| `feePaid` | boolean | — | Filter by payment status |
-| `class` | string | — | Filter by class name |
+| `class` | string | — | Filter by exact class name (e.g. `Grade 5A`) |
+| `status` | string | — | Filter by payment status: `paid`, `unpaid`, or `partial` |
+| `search` | string | — | Case-insensitive match on `name` or `studentId` |
+
+Filters can be combined (e.g. `?class=Grade+5A&status=unpaid&search=ali`).
 
 **Response `200`**
 ```json

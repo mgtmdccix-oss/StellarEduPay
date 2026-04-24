@@ -273,6 +273,72 @@ describe('Student Controller', () => {
       expect(res.body.page).toBe(1);
       expect(Student.find).toHaveBeenCalled();
     });
+
+    test('filters by class', async () => {
+      const res = await testApi.get('/api/students?class=5A');
+
+      expect(res.status).toBe(200);
+      expect(Student.find).toHaveBeenCalledWith(
+        expect.objectContaining({ class: '5A' })
+      );
+    });
+
+    test('filters by status=paid', async () => {
+      const res = await testApi.get('/api/students?status=paid');
+
+      expect(res.status).toBe(200);
+      expect(Student.find).toHaveBeenCalledWith(
+        expect.objectContaining({ feePaid: true })
+      );
+    });
+
+    test('filters by status=unpaid', async () => {
+      const res = await testApi.get('/api/students?status=unpaid');
+
+      expect(res.status).toBe(200);
+      expect(Student.find).toHaveBeenCalledWith(
+        expect.objectContaining({ feePaid: false, totalPaid: { $lte: 0 } })
+      );
+    });
+
+    test('filters by status=partial', async () => {
+      const res = await testApi.get('/api/students?status=partial');
+
+      expect(res.status).toBe(200);
+      expect(Student.find).toHaveBeenCalledWith(
+        expect.objectContaining({ feePaid: false, totalPaid: { $gt: 0 } })
+      );
+    });
+
+    test('returns 400 for invalid status value', async () => {
+      const res = await testApi.get('/api/students?status=invalid');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty('code', 'VALIDATION_ERROR');
+    });
+
+    test('filters by search (case-insensitive name/studentId match)', async () => {
+      const res = await testApi.get('/api/students?search=ali');
+
+      expect(res.status).toBe(200);
+      const callArg = Student.find.mock.calls[0][0];
+      expect(callArg).toHaveProperty('$or');
+      expect(callArg.$or).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: expect.any(RegExp) }),
+          expect.objectContaining({ studentId: expect.any(RegExp) }),
+        ])
+      );
+    });
+
+    test('combines class, status, and search filters', async () => {
+      const res = await testApi.get('/api/students?class=5A&status=paid&search=alice');
+
+      expect(res.status).toBe(200);
+      const callArg = Student.find.mock.calls[0][0];
+      expect(callArg).toMatchObject({ class: '5A', feePaid: true });
+      expect(callArg).toHaveProperty('$or');
+    });
   });
 
   describe('GET /api/students/:studentId - getStudent', () => {

@@ -94,9 +94,36 @@ async function getAllStudents(req, res, next) {
     const limit = Math.max(1, parseInt(req.query.limit, 10) || 50);
     const skip = (page - 1) * limit;
 
+    const filter = { schoolId: req.schoolId };
+
+    if (req.query.class) {
+      filter.class = req.query.class;
+    }
+
+    if (req.query.status) {
+      const status = req.query.status;
+      if (status === 'paid') {
+        filter.feePaid = true;
+      } else if (status === 'unpaid') {
+        filter.feePaid = false;
+        filter.totalPaid = { $lte: 0 };
+      } else if (status === 'partial') {
+        filter.feePaid = false;
+        filter.totalPaid = { $gt: 0 };
+      } else {
+        return res.status(400).json({ error: 'status must be paid, unpaid, or partial', code: 'VALIDATION_ERROR' });
+      }
+    }
+
+    if (req.query.search) {
+      const escaped = req.query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(escaped, 'i');
+      filter.$or = [{ name: re }, { studentId: re }];
+    }
+
     const [students, total] = await Promise.all([
-      Student.find({ schoolId: req.schoolId }).sort({ createdAt: -1 }).skip(skip).limit(limit),
-      Student.countDocuments({ schoolId: req.schoolId }),
+      Student.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Student.countDocuments(filter),
     ]);
 
     res.json({ students, total, page, pages: Math.ceil(total / limit) });
