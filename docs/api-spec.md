@@ -124,6 +124,32 @@ Authorization: Bearer <token>
 { "message": "School deactivated" }
 ```
 
+### Deactivate a school (explicit endpoint) — admin only
+```
+PATCH /api/schools/:schoolId/deactivate
+Authorization: Bearer <token>
+```
+Sets `isActive: false`. Deactivated schools are excluded from `GET /api/schools` by default and all payment operations return `404 SCHOOL_NOT_FOUND` via the school context middleware.
+
+**Response `200`**
+```json
+{ "message": "School \"Lincoln High\" deactivated", "schoolId": "SCH-3F2A", "isActive": false }
+```
+**Errors** — `404 NOT_FOUND` if school does not exist.
+
+### Reactivate a school — admin only
+```
+PATCH /api/schools/:schoolId/activate
+Authorization: Bearer <token>
+```
+Sets `isActive: true`. The school immediately becomes visible in `GET /api/schools` and accepts payment operations again.
+
+**Response `200`**
+```json
+{ "message": "School \"Lincoln High\" activated", "schoolId": "SCH-3F2A", "isActive": true }
+```
+**Errors** — `404 NOT_FOUND` if school does not exist.
+
 ---
 
 ## Students

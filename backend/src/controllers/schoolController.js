@@ -186,4 +186,72 @@ async function deactivateSchool(req, res, next) {
   }
 }
 
-module.exports = { createSchool, getAllSchools, getSchool, updateSchool, deactivateSchool };
+// PATCH /api/schools/:schoolSlug/deactivate
+async function deactivateSchoolEndpoint(req, res, next) {
+  try {
+    const school = await School.findOneAndUpdate(
+      { slug: req.params.schoolSlug.toLowerCase() },
+      { isActive: false },
+      { new: true }
+    );
+    if (!school) {
+      const e = new Error('School not found');
+      e.code = 'NOT_FOUND';
+      return next(e);
+    }
+
+    if (req.auditContext) {
+      await logAudit({
+        schoolId: school.schoolId,
+        action: 'school_deactivate',
+        performedBy: req.auditContext.performedBy,
+        targetId: school.schoolId,
+        targetType: 'school',
+        details: { name: school.name, slug: school.slug },
+        result: 'success',
+        ipAddress: req.auditContext.ipAddress,
+        userAgent: req.auditContext.userAgent,
+      });
+    }
+
+    res.json({ message: `School "${school.name}" deactivated`, schoolId: school.schoolId, isActive: false });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/schools/:schoolSlug/activate
+async function activateSchool(req, res, next) {
+  try {
+    const school = await School.findOneAndUpdate(
+      { slug: req.params.schoolSlug.toLowerCase() },
+      { isActive: true },
+      { new: true }
+    );
+    if (!school) {
+      const e = new Error('School not found');
+      e.code = 'NOT_FOUND';
+      return next(e);
+    }
+
+    if (req.auditContext) {
+      await logAudit({
+        schoolId: school.schoolId,
+        action: 'school_activate',
+        performedBy: req.auditContext.performedBy,
+        targetId: school.schoolId,
+        targetType: 'school',
+        details: { name: school.name, slug: school.slug },
+        result: 'success',
+        ipAddress: req.auditContext.ipAddress,
+        userAgent: req.auditContext.userAgent,
+      });
+    }
+
+    res.json({ message: `School "${school.name}" activated`, schoolId: school.schoolId, isActive: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { createSchool, getAllSchools, getSchool, updateSchool, deactivateSchool, deactivateSchoolEndpoint, activateSchool };
