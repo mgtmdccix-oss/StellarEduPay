@@ -20,6 +20,7 @@ All error responses follow the [Error Responses](#error-responses) format.
 - [Reminders](#reminders)
 - [Retry Queue](#retry-queue)
 - [Health Check](#health-check)
+- [Admin](#admin)
 - [Error Responses](#error-responses)
 - [Fee Adjustment Rules](#fee-adjustment-rules)
 
@@ -914,6 +915,7 @@ Simple liveness probe. No auth or school context required.
 {
   "status": "healthy",
   "timestamp": "2026-04-23T15:00:00.000Z",
+  "logLevel": "info",
   "checks": {
     "database": { "status": "healthy", "latency_ms": 2 },
     "stellar": { "status": "healthy", "latency_ms": 120, "network": "testnet", "horizonUrl": "https://horizon-testnet.stellar.org" },
@@ -923,6 +925,37 @@ Simple liveness probe. No auth or school context required.
 ```
 
 `checks.paymentProcessor.queueDepth` is the number of payments currently being processed. When it reaches `maxQueueDepth` (controlled by `MAX_QUEUE_DEPTH` env var), new payments return `QUEUE_FULL` and are retried automatically.
+
+`logLevel` reflects the current runtime log level (see [Admin — Set Log Level](#admin--set-log-level)).
+
+---
+
+## Admin
+
+### Set log level — admin only
+
+Change the server log level at runtime without restarting.
+
+```
+POST /api/admin/log-level
+Authorization: Bearer <token>
+```
+
+**Request body**
+
+| Field | Type | Required | Values |
+|---|---|---|---|
+| `level` | string | Yes | `debug`, `info`, `warn`, `error` |
+
+**Response `200`**
+```json
+{ "previous": "info", "current": "debug" }
+```
+
+**Errors**
+- `400 INVALID_LOG_LEVEL` — level is missing or not one of the accepted values
+- `401 MISSING_AUTH_TOKEN` — no Bearer token provided
+- `403 INSUFFICIENT_ROLE` — token does not have admin role
 
 ---
 

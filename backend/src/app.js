@@ -17,6 +17,7 @@ const disputeRoutes = require('./routes/disputeRoutes');
 const sourceValidationRuleRoutes = require('./routes/sourceValidationRuleRoutes');
 const receiptsRoutes = require('./routes/receiptsRoutes');
 const feeAdjustmentRoutes = require('./routes/feeAdjustmentRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const { startPolling, stopPolling } = require('./services/transactionPollingService');
 const retrySelector = require('./services/retryServiceSelector');
@@ -82,6 +83,7 @@ app.use('/api/disputes', disputeRoutes);
 app.use('/api/source-rules', sourceValidationRuleRoutes);
 app.use('/api/receipts', receiptsRoutes);
 app.use('/api/fee-adjustments', feeAdjustmentRoutes);
+app.use('/api/admin', adminRoutes);
 app.get('/api/consistency', runConsistencyCheck);
 app.get('/health', healthCheck);
 

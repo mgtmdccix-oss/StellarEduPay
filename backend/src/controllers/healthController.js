@@ -4,6 +4,7 @@ const database = require('../config/database');
 const { server } = require('../config/stellarConfig');
 const config = require('../config');
 const { concurrentPaymentProcessor } = require('../services/concurrentPaymentProcessor');
+const logger = require('../utils/logger');
 
 const STELLAR_CHECK_TIMEOUT_MS = Math.min(config.STELLAR_TIMEOUT_MS, 5000);
 
@@ -47,6 +48,7 @@ async function healthCheck(req, res) {
   const body = {
     status: allHealthy ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
+    logLevel: logger.getLevel(),
     checks: {
       database: {
         status: db.healthy ? 'healthy' : 'unhealthy',
