@@ -287,13 +287,26 @@ async function verifyTransaction(txHash, walletAddress) {
 
 /**
  * Fetch recent transactions for a specific school wallet and record new payments.
+ * Returns a summary object with counts for each outcome category.
  * Paginates through ALL transactions (200 per page) until an already-processed
  * transaction is encountered, ensuring no payments are missed after downtime.
  *
  * @param {object} school - School document with { schoolId, stellarAddress }
+ * @returns {object} summary - { found, new: newCount, matched, unmatched, failed, alreadyProcessed, failedDetails }
  */
 async function syncPaymentsForSchool(school) {
   const { schoolId, stellarAddress } = school;
+
+  // Summary counters
+  const summary = {
+    found: 0,
+    new: 0,
+    matched: 0,
+    unmatched: 0,
+    failed: 0,
+    alreadyProcessed: 0,
+    failedDetails: [],   // [{ txHash, reason }]
+  };
 
   // Fetch up to 200 transactions per page (Horizon API maximum).
   // Pagination continues until we hit an already-recorded transaction or
@@ -313,17 +326,62 @@ async function syncPaymentsForSchool(school) {
   let newPayments = 0;
   while (!done) {
     for (const tx of page.records) {
+      summary.found++;
+
       const existing = await Payment.findOne({ txHash: tx.hash });
+      if (existing) { summary.alreadyProcessed++; done = true; break; }
+
+      summary.new++;
       if (existing) {
         done = true;
         break;
       }
 
       const valid = await extractValidPayment(tx, stellarAddress);
-      if (!valid) continue;
+      if (!valid) {
+        // Log if the tx was skipped due to wrong destination
+        if (tx.successful) {
+          const ops = await withStellarRetry(
+            () => tx.operations(),
+            { label: 'syncPaymentsForSchool.destinationCheck' }
+          ).catch(() => ({ records: [] }));
+          const wrongDest = ops.records.find(
+            op => op.type === 'payment' && op.to && op.to !== stellarAddress
+          );
+          if (wrongDest) {
+            logger.warn('Transaction skipped — destination does not match school wallet', {
+              txHash: tx.hash, schoolId,
+              destination: wrongDest.to,
+              expected: stellarAddress,
+            });
+            summary.failed++;
+            summary.failedDetails.push({ txHash: tx.hash, reason: `INVALID_DESTINATION: payment sent to ${wrongDest.to}, expected ${stellarAddress}` });
+            continue;
+          }
+        }
+        summary.unmatched++;
+        continue;
+      }
 
       const { payOp, memo } = valid;
 
+      // Explicit destination check — defence-in-depth beyond extractValidPayment
+      if (payOp.to !== stellarAddress) {
+        logger.warn('Transaction skipped — destination mismatch after extraction', {
+          txHash: tx.hash, schoolId, destination: payOp.to, expected: stellarAddress,
+        });
+        summary.failed++;
+        summary.failedDetails.push({ txHash: tx.hash, reason: `INVALID_DESTINATION: payment sent to ${payOp.to}` });
+        continue;
+      }
+
+      const intent = await PaymentIntent.findOne({ schoolId, memo, status: 'pending' });
+      if (!intent) { summary.unmatched++; continue; }
+
+      const student = await Student.findOne({ schoolId, studentId: intent.studentId });
+      if (!student) { summary.unmatched++; continue; }
+
+      summary.matched++;
       const intent = await PaymentIntent.findOne({
         schoolId,
         memo,
@@ -340,7 +398,11 @@ async function syncPaymentsForSchool(school) {
       const paymentAmount = parseFloat(payOp.amount);
 
       const limitValidation = validatePaymentAmount(paymentAmount);
-      if (!limitValidation.valid) continue;
+      if (!limitValidation.valid) {
+        summary.failed++;
+        summary.failedDetails.push({ txHash: tx.hash, reason: limitValidation.code });
+        continue;
+      }
 
       const senderAddress = payOp.from || null;
       const txDate = new Date(tx.created_at);
@@ -414,6 +476,8 @@ async function syncPaymentsForSchool(school) {
           confirmationStatus: "failed",
           confirmedAt: txDate,
         });
+        summary.failed++;
+        summary.failedDetails.push({ txHash: tx.hash, reason: feeValidation.message });
         newPayments++;
         continue;
       }
@@ -507,6 +571,8 @@ async function syncPaymentsForSchool(school) {
       if (!page || !page.records.length) break;
     }
   }
+
+  return summary;
   return { newPayments };
 }
 

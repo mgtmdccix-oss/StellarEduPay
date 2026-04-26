@@ -727,6 +727,19 @@ async function syncAllPayments(req, res, next) {
   }
   _syncLocks.add(schoolId);
   try {
+    const summary = await syncPaymentsForSchool(req.school);
+    res.json({
+      message: "Sync complete",
+      summary: {
+        found:           summary.found,
+        new:             summary.new,
+        matched:         summary.matched,
+        unmatched:       summary.unmatched,
+        failed:          summary.failed,
+        alreadyProcessed: summary.alreadyProcessed,
+        failedDetails:   summary.failedDetails,
+      },
+    });
     const result = await syncPaymentsForSchool(req.school);
 
     // Audit log

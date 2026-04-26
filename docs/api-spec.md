@@ -781,12 +781,28 @@ X-School-ID: SCH-3F2A
 ```
 **Response `200`** — aggregated stats for the school dashboard (total students, total collected, unpaid count, recent payments).
 
+Fetches recent transactions from Stellar Horizon, matches memos to registered students, validates amounts, and records any new payments. Safe to call repeatedly — duplicate transactions are skipped.
+
+**Example request**
 ---
 
 ## Disputes
 
 All dispute routes require school context.
 
+```json
+{
+  "message": "Sync complete",
+  "summary": {
+    "found": 12,
+    "new": 3,
+    "matched": 2,
+    "unmatched": 1,
+    "failed": 0,
+    "alreadyProcessed": 9,
+    "failedDetails": []
+  }
+}
 ### Flag a dispute
 ```
 POST /api/disputes
@@ -794,6 +810,19 @@ X-School-ID: SCH-3F2A
 ```
 **Request body**
 
+`summary` fields:
+
+| Field | Description |
+|---|---|
+| `found` | Total transactions fetched from Horizon |
+| `new` | Transactions not previously seen |
+| `matched` | Transactions matched to a student via PaymentIntent |
+| `unmatched` | Transactions with no matching intent or student |
+| `failed` | Transactions that failed validation (underpaid, wrong destination, limit exceeded) |
+| `alreadyProcessed` | Transactions already recorded — sync stopped here |
+| `failedDetails` | Array of `{ txHash, reason }` for each failed transaction |
+
+**Stellar network unavailable `502`**
 | Field | Type | Required |
 |---|---|---|
 | `txHash` | string | Yes |
