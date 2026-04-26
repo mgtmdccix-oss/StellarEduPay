@@ -1,52 +1,56 @@
-'use strict';
+"use strict";
+
+const Payment = require("../models/paymentModel");
+const { generateReferenceCode } = require("../utils/generateReferenceCode");
+const logger = require("../utils/logger").child("TransactionService");
 
 /**
- * Transaction Poller
- *
- * Polls all active schools' Stellar wallets on a fixed interval.
- * Before multi-school support this polled a single global wallet;
- * now it fans out to every active school in parallel.
+ * Persist a payment record, enforcing uniqueness on txHash.
+ * Throws DUPLICATE_TX if already recorded.
+ * data must include schoolId.
  */
-
-const School = require('../models/schoolModel');
-const { syncPaymentsForSchool } = require('./stellarService');
-const { POLL_INTERVAL_MS } = require('../config');
-const logger = require('../utils/logger').child('TransactionPoller');
-
-let _timer = null;
-
-function startPolling() {
-  if (_timer) return;
-  logger.info(`Starting — interval: ${POLL_INTERVAL_MS}ms`);
-
-  const run = async () => {
-    try {
-      const schools = await School.find({ isActive: true }).lean();
-      if (schools.length === 0) return;
-
-      const results = await Promise.allSettled(schools.map(s => syncPaymentsForSchool(s)));
-
-      results.forEach((result, i) => {
-        if (result.status === 'rejected') {
-          logger.error(`Sync error for school ${schools[i].schoolId}`, { error: result.reason?.message, schoolId: schools[i].schoolId });
-        }
+async function savePayment(data) {
+  const exists = await Payment.findOne({
+    transactionHash: data.transactionHash,
+  });
+  if (exists) {
+    const err = new Error(
+      `Transaction ${data.transactionHash} has already been processed`,
+    );
+    err.code = "DUPLICATE_TX";
+    throw err;
+  }
+  if (!data.referenceCode) {
+    data = { ...data, referenceCode: await generateReferenceCode() };
+  }
+  try {
+    return await Payment.create(data);
+  } catch (e) {
+    if (e.code === 11000) {
+      const err = new Error(
+        `Transaction ${data.transactionHash} has already been processed`,
+      );
+      err.code = "DUPLICATE_TX";
+      logger.warn("Duplicate transaction rejected", {
+        txHash: data.transactionHash,
+        schoolId: data.schoolId,
       });
-    } catch (err) {
-      logger.error('Fatal sync error', { error: err.message, stack: err.stack });
+      throw err;
     }
-  };
-
-  run();
-  _timer = setInterval(run, POLL_INTERVAL_MS);
-  _timer.unref();
-}
-
-function stopPolling() {
-  if (_timer) {
-    clearInterval(_timer);
-    _timer = null;
-    logger.info('Stopped');
+    logger.error("Failed to record payment", {
+      error: e.message,
+      txHash: data.transactionHash,
+      schoolId: data.schoolId,
+    });
+    throw e;
   }
 }
 
-module.exports = { startPolling, stopPolling };
+/**
+ * Retrieve all payments for a given student, sorted by most recent first.
+ */
+async function getPaymentsByStudent(studentId) {
+  return Payment.find({ studentId }).sort({ confirmedAt: -1 }).lean();
+}
+
+module.exports = { savePayment, getPaymentsByStudent };

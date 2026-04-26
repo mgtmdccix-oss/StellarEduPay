@@ -17,6 +17,7 @@ A decentralized school fee payment system built on the Stellar blockchain networ
 - [Getting Started](#-getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
+  - [Funding Your Testnet Wallet with Friendbot](#funding-your-testnet-wallet-with-friendbot)
   - [Configuration](#configuration)
   - [Running the Application](#running-the-application)
 - [Environment Variables](#-environment-variables)
@@ -143,6 +144,98 @@ Assets are configured in [`backend/src/config/stellarConfig.js`](backend/src/con
 - **Mainnet**: For production with real assets
 
 Controlled by the `STELLAR_NETWORK` environment variable.
+
+---
+
+## 🚰 Funding Your Testnet Wallet with Friendbot
+
+When working on the **Stellar Testnet**, every account must be funded before it can send or receive transactions. Friendbot is a free faucet provided by the Stellar Development Foundation that deposits **10,000 test XLM** into any testnet account instantly.
+
+> ⚠️ Friendbot only works on **testnet**. Never use it (or expect it) on mainnet.
+
+### Why You Need This
+
+A newly generated Stellar keypair does not exist on the ledger until it receives its first funding. Attempting to use an unfunded account will result in a `tx_insufficient_balance` or account-not-found error.
+
+### Option 1: Stellar Laboratory (Browser)
+
+1. Go to [https://laboratory.stellar.org/#account-creator?network=test](https://laboratory.stellar.org/#account-creator?network=test)
+2. Click **"Generate keypair"** to create a new public/secret key pair, or paste your existing public key.
+3. Click **"Fund account with Friendbot"**.
+4. You'll see a success response — your account now has 10,000 test XLM.
+
+### Option 2: Friendbot HTTP API (curl)
+
+Replace `YOUR_PUBLIC_KEY` with your actual Stellar public key (starts with `G`):
+
+```bash
+curl "https://friendbot.stellar.org?addr=YOUR_PUBLIC_KEY"
+```
+
+Successful response:
+
+```json
+{
+  "hash": "abc123...",
+  "result_xdr": "...",
+  "_links": { ... }
+}
+```
+
+### Option 3: JavaScript / Node.js
+
+If you want to fund an account programmatically in a script or test setup:
+
+```js
+const { Keypair } = require('@stellar/stellar-sdk');
+const fetch = require('node-fetch'); // or use native fetch in Node 18+
+
+async function fundTestnetAccount(publicKey) {
+  const response = await fetch(
+    `https://friendbot.stellar.org?addr=${encodeURIComponent(publicKey)}`
+  );
+  if (!response.ok) {
+    throw new Error(`Friendbot failed: ${response.statusText}`);
+  }
+  const data = await response.json();
+  console.log('Account funded! Tx hash:', data.hash);
+  return data;
+}
+
+// Example usage
+const keypair = Keypair.random();
+console.log('Public Key:', keypair.publicKey());
+console.log('Secret Key:', keypair.secret());
+
+fundTestnetAccount(keypair.publicKey());
+```
+
+### Verifying the Balance
+
+After funding, confirm the account exists and check its balance:
+
+```bash
+curl "https://horizon-testnet.stellar.org/accounts/YOUR_PUBLIC_KEY" \
+  | python -m json.tool | grep -A3 '"balances"'
+```
+
+Or visit the Stellar Testnet Explorer:
+
+```
+https://stellar.expert/explorer/testnet/account/YOUR_PUBLIC_KEY
+```
+
+### Funding in This Project
+
+When setting up StellarEduPay for local development:
+
+1. Generate your school wallet (see [Step 2 in Installation](#installation)).
+2. Copy the **Public Key** (`G...`).
+3. Run the Friendbot curl command above with that public key.
+4. Set `SCHOOL_WALLET_ADDRESS` in `backend/.env` to that public key.
+5. The backend will now be able to read incoming testnet transactions for that wallet.
+
+> The backend only reads from the blockchain — it never needs the secret key. Keep your secret key private.
 
 ---
 
@@ -359,7 +452,7 @@ Create a `.env.local` file in the `frontend/` directory:
 
 ```bash
 cd ../frontend
-cp .env.example .env.local
+cp .env.local.example .env.local
 ```
 
 Edit `frontend/.env.local`:
@@ -403,15 +496,31 @@ Visit **http://localhost:3000** in your browser.
 
 ```bash
 # From the project root — replace the value with your actual public key
+# MongoDB credentials are set via environment variables (defaults: root/password)
 SCHOOL_WALLET_ADDRESS=GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX docker compose up --build
+```
+
+To use custom MongoDB credentials, set them before running:
+
+```bash
+export MONGO_ROOT_USERNAME=myuser
+export MONGO_ROOT_PASSWORD=mysecurepassword
+export SCHOOL_WALLET_ADDRESS=GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+docker compose up --build
 ```
 
 > On older Docker installations, use `docker-compose` (with a hyphen) instead of `docker compose`.
 
 This will start:
-- MongoDB on port 27017
+- MongoDB on port 27017 (with authentication enabled)
 - Backend on port 5000
 - Frontend on port 3000
+
+**Security Note**: MongoDB is configured with root authentication. The default credentials (root/password) should be changed in production. Generate secure passwords with:
+
+```bash
+openssl rand -base64 32
+```
 
 ### Initial Setup: Seed Data
 
